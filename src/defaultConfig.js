@@ -1,13 +1,11 @@
-const OptimizeCSSAssetsPlugin = require("optimize-css-assets-webpack-plugin");
-const CleanObsoleteChunks = require("webpack-clean-obsolete-chunks");
-const ProgressBarPlugin = require("progress-bar-webpack-plugin");
+const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const { CleanWebpackPlugin } = require("clean-webpack-plugin");
-const ManifestPlugin = require("webpack-manifest-plugin");
+const { WebpackManifestPlugin } = require("webpack-manifest-plugin");
 const TerserPlugin = require("terser-webpack-plugin");
 const styleLoaders = require("./utils/styleLoaders");
-const { EnvironmentPlugin } = require("webpack");
-const webpackMerge = require("webpack-merge");
+const { ProgressPlugin, EnvironmentPlugin } = require("webpack");
+const { merge } = require("webpack-merge");
 const path = require("path");
 const fs = require("fs");
 
@@ -33,7 +31,7 @@ module.exports = () => ({
                 test: /\.jsx?$/,
                 exclude: /node_modules/,
                 loader: "babel-loader",
-                options: webpackMerge.smart(global.elixir.config.babelOptions, {
+                options: merge(global.elixir.config.babelOptions, {
                     presets: [
                         [
                             "@babel/preset-env",
@@ -50,32 +48,44 @@ module.exports = () => ({
             },
             {
                 test: /\.(png|jpe?g|gif|svg)(\?.*)?$/,
-                loader: "url-loader",
-                options: {
-                    limit: 10000,
-                    name: global.elixir.versioning
-                        ? "includes/images/[name].[hash:7].[ext]"
-                        : "includes/images/[name].[ext]"
+		type: 'asset',
+		parser: {
+			dataUrlCondition: {
+				maxSize: 10000
+			}
+		},
+		generator: {
+                    filename: global.elixir.versioning
+                        ? "images/[name].[contenthash:7].[ext]"
+                        : "images/[name].[ext]"
                 }
             },
             {
                 test: /\.(mp4|webm|ogg|mp3|wav|flac|aac)(\?.*)?$/,
-                loader: "url-loader",
-                options: {
-                    limit: 10000,
-                    name: global.elixir.versioning
-                        ? "includes/media/[name].[hash:7].[ext]"
-                        : "includes/media/[name].[ext]"
+		type: 'asset',
+		parser: {
+			dataUrlCondition: {
+				maxSize: 10000
+			}
+		},
+		generator: {
+                    filename: global.elixir.versioning
+                        ? "media/[name].[contenthash:7].[ext]"
+                        : "media/[name].[ext]"
                 }
             },
             {
                 test: /\.(woff2?|eot|ttf|otf)(\?.*)?$/,
-                loader: "url-loader",
-                options: {
-                    limit: 10000,
-                    name: global.elixir.versioning
-                        ? "includes/fonts/[name].[hash:7].[ext]"
-                        : "includes/fonts/[name].[ext]"
+		type: 'asset',
+		parser: {
+			dataUrlCondition: {
+				maxSize: 1000
+			}
+		},
+		generator: {
+                    filename: global.elixir.versioning
+                        ? "fonts/[name].[contenthash:7].[ext]"
+                        : "fonts/[name].[ext]"
                 }
             }
         ].concat(
@@ -87,15 +97,25 @@ module.exports = () => ({
     },
     devtool: global.elixir.isProduction
         ? "#source-map"
-        : "cheap-module-eval-source-map",
+        : "eval-cheap-module-source-map",
     resolve: {
         extensions: [".js", ".json"],
         alias: {
             "@": path.join(global.elixir.rootPath, "resources/assets/js")
-        }
+        },
+	fallback: {
+        // prevent webpack from injecting mocks to Node native modules
+        // that does not make sense for the client
+        dgram: false,
+        fs: false,
+        net: false,
+        tls: false,
+        child_process: false,
+	setImmediate: false
+	}
     },
     plugins: [
-        new ProgressBarPlugin(),
+        new ProgressPlugin(),
         // add these based on what features are enabled
         new CleanWebpackPlugin({
             cleanOnceBeforeBuildPatterns: [
@@ -104,12 +124,9 @@ module.exports = () => ({
                 global.elixir.vendorChunkFileNameWithoutExtension
             ]
         }),
-        new CleanObsoleteChunks({
-            verbose: false
-        }),
-        new ManifestPlugin({
+/*        new WebpackManifestPlugin({
             fileName: global.elixir.manifestFileName
-        }),
+        }),*/
         new MiniCssExtractPlugin({
             filename: global.elixir.versioning
                 ? "[name].[contenthash].css"
@@ -143,23 +160,9 @@ module.exports = () => ({
         },
         minimizer: [
             new TerserPlugin({
-                cache: true,
                 parallel: true,
-                sourceMap: true
             }),
-            new OptimizeCSSAssetsPlugin({})
+            new CssMinimizerPlugin({})
         ]
     },
-    node: {
-        // prevent webpack from injecting useless setImmediate polyfill because Vue
-        // source contains it (although only uses it if it's native).
-        setImmediate: false,
-        // prevent webpack from injecting mocks to Node native modules
-        // that does not make sense for the client
-        dgram: "empty",
-        fs: "empty",
-        net: "empty",
-        tls: "empty",
-        child_process: "empty"
-    }
 });

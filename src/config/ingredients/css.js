@@ -1,4 +1,4 @@
-const WebpackDeleteAfterEmit = require("webpack-delete-after-emit");
+const RemoveFilesWebpackPlugin = require("remove-files-webpack-plugin");
 const { CleanWebpackPlugin } = require("clean-webpack-plugin");
 const path = require("path");
 
@@ -10,12 +10,12 @@ module.exports = function(
         entryDirectory = "resources/assets/css/"
     } = {}
 ) {
+/*
     this.dependencies([
         "css-loader",
-        "postcss-loader",
-        "url-loader",
-        "file-loader"
+        "postcss-loader"
     ]);
+*/
     const expandedOutputDirectory = path.join(this.prefix, outputDirectory);
     const chunkName = path.join(expandedOutputDirectory, name);
     const srcName = Array.isArray(filename)
@@ -42,11 +42,16 @@ module.exports = function(
             }
         },
         plugins: [
-            new WebpackDeleteAfterEmit({
-                globs: [
-                    `${expandedOutputDirectory}/*.js`,
-                    `${expandedOutputDirectory}/*.js.map`
-                ]
+            new RemoveFilesWebpackPlugin({
+		after: {
+			root: expandedOutputDirectory,
+			test: [{
+				folder: ".",
+				method: (absoluteItemPath) => {
+					return new RegExp(/\.js(\.map)?$/, 'm').test(absoluteItemPath);
+				}
+			}],
+		},
             }),
             new CleanWebpackPlugin({
                 cleanOnceBeforeBuildPatterns: [expandedOutputDirectory]
